@@ -1,0 +1,21 @@
+.env
+*.pyc
+/__pycache__/
+/venv/
+env/
+.venv/
+.idea/
+.vscode/
+.DS_Store
+__pypackages__/
+*.sqlite3
+instance/
+.pytest_cache/
+.coverage
+
+# Ignore environment variable files
+.env
+.env.*
+.venv/
+
+        
