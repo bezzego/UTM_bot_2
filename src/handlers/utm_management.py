@@ -54,6 +54,9 @@ async def start_utm_management(
     message: types.Message | None = None,
     callback: types.CallbackQuery | None = None,
 ) -> None:
+    # Принудительно перезагружаем данные из файла каждый раз при входе в меню
+    utm_manager.load_data()
+    
     utm_editing_data[user_id] = {"step": None, "category": None}
     categories = utm_manager.get_all_categories()
     text = (
@@ -65,6 +68,7 @@ async def start_utm_management(
     if callback:
         await callback.answer()
         if callback.message:
+            # Используем edit_text для обновления существующего сообщения
             await callback.message.edit_text(text, reply_markup=build_categories_keyboard(categories))
         return
 
@@ -155,6 +159,7 @@ async def view_items(callback: types.CallbackQuery) -> None:
         
     category_name, short_category_key = categories[long_category_key]
     
+    utm_manager.load_data() # Дополнительная перезагрузка данных для надежности
     items = utm_manager.get_category_data(short_category_key)
     
     if not items:
@@ -250,6 +255,7 @@ async def delete_utm_item(callback: types.CallbackQuery) -> None:
 
     await callback.answer("✅ Метка удалена!")
 
+    utm_manager.load_data()
     items = utm_manager.get_category_data(short_category_key)
     if not items:
         await callback.message.edit_text("Все метки в этой категории были удалены.")
