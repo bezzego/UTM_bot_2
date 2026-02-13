@@ -19,14 +19,11 @@ class UTMManager:
             self._create_default_data_file()
             created_now = True
         
-        # Если файл не был только что создан, загружаем и проверяем его
         if not created_now:
             self.load_data()
-            # Если данные неполные (например, пустой json), перезаписываем
             if not self.data.get("sources") or not self.data.get("mediums"):
                 self._create_default_data_file()
         
-        # В любом случае, в конце загружаем актуальные данные в память
         self.load_data()
         self.normalize_data()
 
@@ -36,19 +33,27 @@ class UTMManager:
             os.makedirs(self.data_dir, exist_ok=True)
             initial_data = {
                 "sources": [
-                    ["VK", "vk"], ["Telegram", "telegram"], ["Yandex", "yandex"], ["Google", "google"], ["2GIS", "2gis"]
+                    ["Telegram", "telegram"], ["Вконтакте", "vk"], ["Max", "max"], ["Instagram", "inst"], ["Tiktok", "tiktok"], ["Одноклассники", "ok"], ["Youtube", "youtube"]
                 ],
                 "sources_other": [
-                    ["Партнер", "partner"], ["Блогер", "blogger"], ["Сайт", "site"]
+                    ["2ГИС", "2gis"], ["Дзен", "dzen"], ["Япокупаю СПБ", "spb.yapokupayu"], ["Fiesta Blog", "fiestablog"], ["KudaGo", "kudago"], ["Промокодус", "promokodus"], ["POSM", "posm"], ["Я.Карты Профиль", "YandexMapsProf"], ["ПромоСтраницы", "yandex.promopages"]
                 ],
                 "mediums": [
-                    ["CPC", "cpc"], ["Social", "social"], ["Email", "email"], ["Post", "post"], ["Story", "story"]
+                    ["Закупка", "zakup"], ["Блогеры", "bloggers"], ["Реферал", "referral"], ["Карты", "maps"], ["СитиСайт", "citysight"]
                 ],
                 "campaigns": {
-                    "spb": [["Спектакли", "spectacle"], ["Концерты", "concert"], ["Выставки", "exhibition"]],
-                    "msk": [["Театры", "theatre_msk"], ["Стендап", "standup_msk"]],
-                    "regions": [["Афиша ЕКБ", "afisha_ekb"], ["Афиша НСК", "afisha_nsk"]],
-                    "foreign": [["Dubai Events", "dubai_events"]]
+                    "spb": [
+                        ["Все мероприятия", "spektakl_spb"], ["Туры в Карелию", "kareliya_spb"], ["Автобусная экскурсия по городу", "avtexcursion_spb"], ["Пешеходная экскурсия по городу", "peshexcursion_spb"], ["Экскурсия по пригородам", "prigorod_spb"], ["Прогулки на теплоходе", "korabli_spb"], ["Места", "mesta_spb"], ["Аквапарк", "akvapark_spb"], ["Аренда теплоходов/катеров", "arenda_spb"], ["Другое", "other_spb"], ["Блог", "blog_spb"], ["Туры по России", "tury_spb"]
+                    ],
+                    "msk": [
+                        ["Все мероприятия", "spektakl_msk"], ["Автобусные экскурсии в Москве", "avtexcursion_msk"], ["Пешеходные экскурсии в Москве", "peshexcursion_msk"], ["Корабли в Москве", "korabli_msk"], ["Места", "mesta_msk"], ["Другое", "other_msk"]
+                    ],
+                    "regions": [
+                        ["Все позиции в Сочи", "sochi"], ["Все позиции в Казани", "kazan"], ["Все позиции в Калининграде", "kaliningrad"], ["Все позиции в Нижнем Новгороде", "nn"], ["Все позиции в Анапе", "anapa"], ["Все позиции в Кисловодске", "kislovodsk"], ["Все позиции в Дагестане", "dagestan"], ["Все позиции во Владикавказе", "osetia"], ["Все позиции в Геленджике", "gelendghik"], ["Все позиции в Крыму", "crimea"], ["Все позиции в Севастополе", "sevastopol"], ["Все позиции во Владикавказе", "vladikavkaz"], ["Все позиции в Ялте", "yalta"], ["Все позиции в Пскове", "pskov"], ["Экскурсии в регионах (общие кампании и подборки)", "regions"], ["Все позиции в Ярославле", "yar"], ["Все позиции в Костроме", "kostroma"], ["Все позиции в Суздале", "suzdal"], ["Все позиции в Вологде", "vologda"], ["Все позиции в Рязани", "ryazan"], ["Все позиции в Краснодарском крае", "krasnodar"], ["Все позиции в Петрозаводске", "petrozavodsk"], ["Все позиции в Ростове", "rostov"], ["Все позиции на Байкале", "baikal"], ["Все позиции в Мурманске", "murmansk"], ["Все позиции в Смоленске", "smolensk"], ["Все позиции в Выборге", "vuborg"], ["Все позиции в Великом Новгороде", "veliky"], ["Все позиции в Новосибирске", "nsk"], ["Все позиции во Владивостоке", "vladivostok"], ["Все позиции в Туле", "tula"], ["Все позиции в Коломне", "kolomna"]
+                    ],
+                    "foreign": [
+                        ["Все позиции в Грузии", "georgia"], ["Все позиции в Абхазии", "abhazia"], ["Все позиции в Минске", "minsk"], ["Все позиции в Алма-Ата", "almatu"], ["Все позиции в Анталье", "antalya"], ["Все позиции в Тбилиси", "tbilisi"], ["Все позиции в Шарм-эль-Шейхе", "sharmelsheikh"], ["Все позиции в Стамбуле", "stambul"], ["Все позиции в Пекине", "pekin"], ["Все позиции в Баку", "baku"], ["Все позиции в Шардже", "sharjah"], ["Все позиции в Дубае", "dubai"], ["Все позиции в Аджмане", "ajman"], ["Все позиции в Фуджейре", "fujairah"], ["Все позиции в Рас-эль-Хайме", "ras-al-khaima"], ["Все позиции в Абу-Даби", "abu-dabi"]
+                    ]
                 }
             }
             with open(self.data_file, 'w', encoding='utf-8') as f:
@@ -146,5 +151,4 @@ class UTMManager:
             "campaign_foreign": ("campaigns", "foreign")
         }
 
-# Примечание: глобальный экземпляр больше не создается здесь.
-# Он будет создаваться по требованию в обработчиках.
+utm_manager = UTMManager()

@@ -2,8 +2,8 @@ import re
 from aiogram import F, Router, types
 from aiogram.filters import Command
 
-# Теперь мы импортируем сам класс, а не глобальный объект
-from src.services.utm_manager import UTMManager 
+# Импортируем глобальный экземпляр, как и раньше
+from src.services.utm_manager import utm_manager 
 from src.keyboards.utm_keyboards import (
     build_categories_keyboard,
     build_category_management_keyboard,
@@ -26,9 +26,8 @@ async def _exit_utm_mode(user_id: int, message: types.Message, callback: types.C
         await callback.answer()
 
 async def start_utm_management(user_id: int, message: types.Message | None = None, callback: types.CallbackQuery | None = None):
-    # Создаем НОВЫЙ экземпляр UTMManager КАЖДЫЙ РАЗ при входе в управление
-    utm_manager = UTMManager()
-    
+    # Используем глобальный экземпляр
+    utm_manager.load_data() # Перезагружаем на случай изменений
     categories = utm_manager.get_all_categories()
     text = (
         "🛠 Панель управления UTM-метками\n\n"
@@ -64,8 +63,6 @@ async def cb_manage_category(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     category_key = callback.data.split(":", 1)[1]
     
-    # Создаем новый экземпляр, чтобы быть уверенными в свежести данных
-    utm_manager = UTMManager()
     categories = utm_manager.get_all_categories()
     category_name = categories[category_key][0]
 
@@ -79,7 +76,6 @@ async def cb_manage_category(callback: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("view_items:"))
 async def cb_view_items(callback: types.CallbackQuery):
-    utm_manager = UTMManager()
     long_category_key = callback.data.split(":", 1)[1]
     categories = utm_manager.get_all_categories()
     
@@ -101,7 +97,6 @@ async def cb_add_item_prompt(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     long_category_key = callback.data.split(":", 1)[1]
     
-    utm_manager = UTMManager()
     categories = utm_manager.get_all_categories()
     _, short_category_key = categories[long_category_key]
 
@@ -113,7 +108,6 @@ async def cb_add_item_prompt(callback: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("delete_item_prompt:"))
 async def cb_delete_item_prompt(callback: types.CallbackQuery):
-    utm_manager = UTMManager()
     long_category_key = callback.data.split(":", 1)[1]
     categories = utm_manager.get_all_categories()
     _, short_category_key = categories[long_category_key]
@@ -131,14 +125,13 @@ async def cb_delete_item_prompt(callback: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("delete_item:"))
 async def cb_delete_item(callback: types.CallbackQuery):
-    utm_manager = UTMManager()
     _, long_category_key, value = callback.data.split(":", 2)
     categories = utm_manager.get_all_categories()
     _, short_category_key = categories[long_category_key]
 
     if utm_manager.delete_item(short_category_key, value):
         await callback.answer("✅ Метка удалена!", show_alert=True)
-        # Обновляем список для удаления
+        utm_manager.load_data() # Перезагружаем данные после удаления
         items = utm_manager.get_category_data(short_category_key)
         if not items:
             await callback.message.edit_text("Все метки в этой категории были удалены.")
@@ -177,7 +170,6 @@ async def process_utm_value(message: types.Message):
         return
 
     state = utm_editing_data[user_id]
-    utm_manager = UTMManager()
     
     if utm_manager.add_item(state["category"], state["name"], value):
         await message.answer(f"✅ Успешно добавлено!\nНазвание: {state['name']}\nЗначение: {value}")
@@ -194,7 +186,20 @@ async def cb_back_to_categories(callback: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("back_to_manage:"))
 async def cb_back_to_manage_category(callback: types.CallbackQuery):
-    await cb_manage_category(callback) # Просто вызываем обработчик управления категорией
+    # Извлекаем ключ категории из callback.data
+    long_category_key = callback.data.split(":", 1)[1]
+    
+    # Воспроизводим логику cb_manage_category напрямую, чтобы избежать ошибки
+    categories = utm_manager.get_all_categories()
+    category_name = categories[long_category_key][0]
+
+    utm_editing_data[callback.from_user.id] = {"category": long_category_key, "step": "choosing_action"}
+
+    await callback.message.edit_text(
+        f"Выбрана категория: {category_name}\n\nВыберите действие:",
+        reply_markup=build_category_management_keyboard(long_category_key)
+    )
+    await callback.answer()
 
 @router.callback_query(F.data == "exit_manage")
 async def cb_exit_manage(callback: types.CallbackQuery):
