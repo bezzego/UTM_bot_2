@@ -14,10 +14,26 @@ class UTMManager:
         self.normalize_data()
 
     def ensure_data_file_exists(self):
-        """Создает директорию и файл данных, если они не существуют, с данными по умолчанию"""
+        """Создает директорию и файл данных, если он не существует или пуст."""
         try:
             os.makedirs(self.data_dir, exist_ok=True)
+            
+            write_defaults = False
             if not os.path.exists(self.data_file):
+                write_defaults = True
+            else:
+                # Файл существует, проверим, не пустой ли он
+                try:
+                    with open(self.data_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        # Проверяем, есть ли данные в ключевых категориях
+                        if not data.get("sources") and not data.get("mediums"):
+                            write_defaults = True
+                except (json.JSONDecodeError, FileNotFoundError):
+                    # Файл поврежден, пуст или не найден
+                    write_defaults = True
+
+            if write_defaults:
                 initial_data = {
                     "sources": [
                         ["VK", "vk"],
@@ -60,7 +76,7 @@ class UTMManager:
                 with open(self.data_file, 'w', encoding='utf-8') as f:
                     json.dump(initial_data, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            logger.error(f"Error creating data file: {e}")
+            logger.error(f"Error in ensure_data_file_exists: {e}")
 
     def load_data(self):
         """Загружает данные из JSON файла"""
