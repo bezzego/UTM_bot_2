@@ -7,7 +7,7 @@ from src.keyboards.utm_keyboards import (
     build_categories_keyboard,
     build_category_management_keyboard,
     build_items_to_delete_keyboard,
-    build_view_items_keyboard, 
+    build_view_items_keyboard,
 )
 from src.services.utm_manager import utm_manager
 from src.state.user_state import utm_editing_data
@@ -107,10 +107,17 @@ async def select_manage_category(callback: types.CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("add_item_prompt:"))
 async def prompt_add_item(callback: types.CallbackQuery) -> None:
     user_id = callback.from_user.id
-    category_key = callback.data.split(":", 1)[1]
+    long_category_key = callback.data.split(":", 1)[1]
+
+    categories = utm_manager.get_all_categories()
+    if long_category_key not in categories:
+        await callback.answer("Ошибка: Неизвестная категория.", show_alert=True)
+        return
+    
+    _, short_category_key = categories[long_category_key]
 
     utm_editing_data.setdefault(user_id, {})
-    utm_editing_data[user_id].update({"category": category_key, "step": "waiting_name"})
+    utm_editing_data[user_id].update({"category": short_category_key, "step": "waiting_name"})
 
     await callback.message.edit_text(
         "Введите название новой метки (например: 'Новый источник'):"
@@ -118,24 +125,37 @@ async def prompt_add_item(callback: types.CallbackQuery) -> None:
 
 @router.callback_query(F.data.startswith("delete_item_prompt:"))
 async def prompt_delete_item(callback: types.CallbackQuery) -> None:
-    category_key = callback.data.split(":", 1)[1]
-    items = utm_manager.get_category_data(category_key)
+    long_category_key = callback.data.split(":", 1)[1]
+
+    categories = utm_manager.get_all_categories()
+    if long_category_key not in categories:
+        await callback.answer("Ошибка: Неизвестная категория.", show_alert=True)
+        return
+        
+    _, short_category_key = categories[long_category_key]
+    
+    items = utm_manager.get_category_data(short_category_key)
     if not items:
         await callback.answer("В этой категории нет меток для удаления.", show_alert=True)
         return
 
     await callback.message.edit_text(
         "Выберите метку для удаления:",
-        reply_markup=build_items_to_delete_keyboard(category_key, items)
+        reply_markup=build_items_to_delete_keyboard(long_category_key, items)
     )
 
 @router.callback_query(F.data.startswith("view_items:"))
 async def view_items(callback: types.CallbackQuery) -> None:
-    category_key = callback.data.split(":", 1)[1]
-    items = utm_manager.get_category_data(category_key)
+    long_category_key = callback.data.split(":", 1)[1]
     
     categories = utm_manager.get_all_categories()
-    category_name = categories[category_key][0]
+    if long_category_key not in categories:
+        await callback.answer("Ошибка: неизвестная категория.", show_alert=True)
+        return
+        
+    category_name, short_category_key = categories[long_category_key]
+    
+    items = utm_manager.get_category_data(short_category_key)
     
     if not items:
         await callback.answer(f"В категории '{category_name}' пока нет меток.", show_alert=True)
@@ -146,7 +166,7 @@ async def view_items(callback: types.CallbackQuery) -> None:
 
     await callback.message.edit_text(
         text,
-        reply_markup=build_view_items_keyboard(category_key)
+        reply_markup=build_view_items_keyboard(long_category_key)
     )
 
 
@@ -214,16 +234,23 @@ async def delete_utm_item(callback: types.CallbackQuery) -> None:
         await callback.answer("❌ Ошибка!")
         return
 
-    _, category_key, value = parts
+    _, long_category_key, value = parts
+    
+    categories = utm_manager.get_all_categories()
+    if long_category_key not in categories:
+        await callback.answer("Ошибка: неизвестная категория.", show_alert=True)
+        return
+        
+    _, short_category_key = categories[long_category_key]
 
-    success = utm_manager.delete_item(category_key, value)
+    success = utm_manager.delete_item(short_category_key, value)
     if not success:
         await callback.answer("❌ Ошибка при удалении!")
         return
 
     await callback.answer("✅ Метка удалена!")
 
-    items = utm_manager.get_category_data(category_key)
+    items = utm_manager.get_category_data(short_category_key)
     if not items:
         await callback.message.edit_text("Все метки в этой категории были удалены.")
         await start_utm_management(callback.from_user.id, callback=callback)
@@ -231,7 +258,7 @@ async def delete_utm_item(callback: types.CallbackQuery) -> None:
 
     await callback.message.edit_text(
         "Выберите метку для удаления:",
-        reply_markup=build_items_to_delete_keyboard(category_key, items),
+        reply_markup=build_items_to_delete_keyboard(long_category_key, items),
     )
 
 

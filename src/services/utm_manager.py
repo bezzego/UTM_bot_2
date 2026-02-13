@@ -22,15 +22,13 @@ class UTMManager:
             if not os.path.exists(self.data_file):
                 write_defaults = True
             else:
-                # Файл существует, проверим, не пустой ли он
                 try:
                     with open(self.data_file, 'r', encoding='utf-8') as f:
                         data = json.load(f)
-                        # Проверяем, есть ли данные в ключевых категориях
-                        if not data.get("sources") and not data.get("mediums"):
+                        # Перезаписываем, если ключевые категории отсутствуют или пусты
+                        if not data.get("sources") or not data.get("mediums"):
                             write_defaults = True
                 except (json.JSONDecodeError, FileNotFoundError):
-                    # Файл поврежден, пуст или не найден
                     write_defaults = True
 
             if write_defaults:
