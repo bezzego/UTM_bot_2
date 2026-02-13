@@ -17,13 +17,19 @@ def build_category_management_keyboard(category_key: str) -> InlineKeyboardMarku
     builder = InlineKeyboardBuilder()
     builder.add(
         InlineKeyboardButton(
+            text="👁 Просмотреть метки",
+            callback_data=f"view_items:{category_key}"
+        )
+    )
+    builder.add(
+        InlineKeyboardButton(
             text="➕ Добавить метку",
             callback_data=f"add_item_prompt:{category_key}"
         )
     )
     builder.add(
         InlineKeyboardButton(
-            text="❌ Удалить метку",
+            text="🗑 Удалить метку",
             callback_data=f"delete_item_prompt:{category_key}"
         )
     )
@@ -34,6 +40,11 @@ def build_category_management_keyboard(category_key: str) -> InlineKeyboardMarku
         )
     )
     builder.adjust(1)
+    return builder.as_markup()
+
+def build_view_items_keyboard(category_key: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"back_to_manage:{category_key}"))
     return builder.as_markup()
 
 def build_items_to_delete_keyboard(category_key: str, items: Sequence[Tuple[str, str]]) -> InlineKeyboardMarkup:

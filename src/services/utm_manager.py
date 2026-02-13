@@ -14,19 +14,47 @@ class UTMManager:
         self.normalize_data()
 
     def ensure_data_file_exists(self):
-        """Создает директорию и файл данных, если они не существуют"""
+        """Создает директорию и файл данных, если они не существуют, с данными по умолчанию"""
         try:
             os.makedirs(self.data_dir, exist_ok=True)
             if not os.path.exists(self.data_file):
                 initial_data = {
-                    "sources": [],
-                    "sources_other": [],
-                    "mediums": [],
+                    "sources": [
+                        ["VK", "vk"],
+                        ["Telegram", "telegram"],
+                        ["Yandex", "yandex"],
+                        ["Google", "google"],
+                        ["2GIS", "2gis"]
+                    ],
+                    "sources_other": [
+                        ["Партнер", "partner"],
+                        ["Блогер", "blogger"],
+                        ["Сайт", "site"]
+                    ],
+                    "mediums": [
+                        ["CPC", "cpc"],
+                        ["Social", "social"],
+                        ["Email", "email"],
+                        ["Post", "post"],
+                        ["Story", "story"]
+                    ],
                     "campaigns": {
-                        "spb": [],
-                        "msk": [],
-                        "regions": [],
-                        "foreign": []
+                        "spb": [
+                            ["Спектакли", "spectacle"],
+                            ["Концерты", "concert"],
+                            ["Выставки", "exhibition"]
+                        ],
+                        "msk": [
+                            ["Театры", "theatre_msk"],
+                            ["Стендап", "standup_msk"]
+                        ],
+                        "regions": [
+                            ["Афиша ЕКБ", "afisha_ekb"],
+                            ["Афиша НСК", "afisha_nsk"]
+                        ],
+                        "foreign": [
+                            ["Dubai Events", "dubai_events"]
+                        ]
                     }
                 }
                 with open(self.data_file, 'w', encoding='utf-8') as f:
@@ -118,9 +146,9 @@ class UTMManager:
         if category_key in category_map:
             main_key, sub_key = category_map[category_key]
             if sub_key:
-                return self.data[main_key][sub_key]
+                return self.data.get(main_key, {}).get(sub_key, [])
             else:
-                return self.data[main_key]
+                return self.data.get(main_key, [])
         return []
 
     def add_item(self, category_key: str, name: str, value: str) -> bool:

@@ -6,7 +6,8 @@ from aiogram.filters import Command
 from src.keyboards.utm_keyboards import (
     build_categories_keyboard,
     build_category_management_keyboard,
-    build_items_to_delete_keyboard
+    build_items_to_delete_keyboard,
+    build_view_items_keyboard, 
 )
 from src.services.utm_manager import utm_manager
 from src.state.user_state import utm_editing_data
@@ -64,7 +65,7 @@ async def start_utm_management(
     if callback:
         await callback.answer()
         if callback.message:
-            await callback.message.answer(text, reply_markup=build_categories_keyboard(categories))
+            await callback.message.edit_text(text, reply_markup=build_categories_keyboard(categories))
         return
 
     if message:
@@ -127,6 +128,27 @@ async def prompt_delete_item(callback: types.CallbackQuery) -> None:
         "Выберите метку для удаления:",
         reply_markup=build_items_to_delete_keyboard(category_key, items)
     )
+
+@router.callback_query(F.data.startswith("view_items:"))
+async def view_items(callback: types.CallbackQuery) -> None:
+    category_key = callback.data.split(":", 1)[1]
+    items = utm_manager.get_category_data(category_key)
+    
+    categories = utm_manager.get_all_categories()
+    category_name = categories[category_key][0]
+    
+    if not items:
+        await callback.answer(f"В категории '{category_name}' пока нет меток.", show_alert=True)
+        return
+
+    text = f"Просмотр меток в категории: {category_name}\n\n"
+    text += "\n".join([f"- {name} ({value})" for name, value in items])
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=build_view_items_keyboard(category_key)
+    )
+
 
 @router.message(lambda msg: utm_editing_data.get(msg.from_user.id, {}).get("step") == "waiting_name")
 async def handle_utm_name(message: types.Message) -> None:
