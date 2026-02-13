@@ -5,10 +5,9 @@ def build_main_menu_keyboard() -> ReplyKeyboardMarkup:
     keyboard_layout = [
         [KeyboardButton(text="Отправить ссылку")],
         [
-            KeyboardButton(text="Управлять UTM"),
             KeyboardButton(text="Посмотреть историю"),
+            KeyboardButton(text="Настройки"),
         ],
-        [KeyboardButton(text="Настройки")],
     ]
     return ReplyKeyboardMarkup(
         keyboard=keyboard_layout,

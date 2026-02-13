@@ -6,6 +6,7 @@ from aiogram.filters import Command
 from aiogram.exceptions import TelegramBadRequest
 
 from src.keyboards.main_menu import build_main_menu_keyboard
+from src.keyboards.settings import build_settings_keyboard
 from src.services.database import database
 from src.handlers.utm_management import start_utm_management
 from src.state.user_state import (
@@ -157,11 +158,99 @@ async def handle_user_deletion(message: types.Message) -> None:
 
 @router.message(F.text == "Настройки")
 async def show_settings(message: types.Message) -> None:
-    await start_utm_management(message.from_user.id, message=message)
+    user_id = message.from_user.id
+    pending_password_change_users.discard(user_id)
+    pending_user_deletion.discard(user_id)
+    await message.answer(
+        "⚙️ Настройки. Выберите действие:",
+        reply_markup=build_settings_keyboard(),
+    )
 
-@router.message(F.text == "Управлять UTM")
-async def manage_utm_command(message: types.Message) -> None:
-    await start_utm_management(message.from_user.id, message=message)
+
+@router.callback_query(F.data == "settings:change_password")
+async def start_password_change(callback: types.CallbackQuery) -> None:
+    user_id = callback.from_user.id
+    pending_user_deletion.discard(user_id)
+    pending_password_change_users.add(user_id)
+    await callback.answer()
+    if callback.message:
+        await callback.message.answer(
+            "✏️ Отправьте новый пароль. Он заменит текущий. Чтобы отменить, напишите «Отмена»."
+        )
+
+
+@router.callback_query(F.data == "settings:view_users")
+async def show_users(callback: types.CallbackQuery) -> None:
+    await callback.answer()
+    active_users = database.list_authorized_users()
+    banned_users = database.list_banned_users()
+
+    lines: list[str] = ["👥 Пользователи бота"]
+
+    if active_users:
+        lines.append("")
+        lines.append("Активные:")
+        for row in active_users[:50]:
+            username = _format_username(row["username"])
+            timestamp = _format_timestamp(row["authorized_at"])
+            lines.append(f"• ID {row['user_id']} | {username} | доступ с {timestamp}")
+        if len(active_users) > 50:
+            lines.append("… показаны последние 50 записей")
+    else:
+        lines.append("")
+        lines.append("Активные: —")
+
+    if banned_users:
+        lines.append("")
+        lines.append("Заблокированные:")
+        for row in banned_users[:50]:
+            username = _format_username(row["username"])
+            timestamp = _format_timestamp(row["banned_at"])
+            reason = row["reason"] or "—"
+            lines.append(
+                f"• ID {row['user_id']} | {username} | блокирован {timestamp} | причина: {reason}"
+            )
+        if len(banned_users) > 50:
+            lines.append("… показаны последние 50 записей")
+    else:
+        lines.append("")
+        lines.append("Заблокированные: —")
+
+    if callback.message:
+        await callback.message.answer("\n".join(lines))
+
+
+@router.callback_query(F.data == "settings:utm_manage")
+async def open_utm_management(callback: types.CallbackQuery) -> None:
+    user_id = callback.from_user.id
+    pending_password_change_users.discard(user_id)
+    pending_user_deletion.discard(user_id)
+    await start_utm_management(user_id, callback=callback)
+
+
+@router.callback_query(F.data == "settings:delete_user")
+async def prompt_user_deletion(callback: types.CallbackQuery) -> None:
+    user_id = callback.from_user.id
+    pending_password_change_users.discard(user_id)
+    pending_user_deletion.add(user_id)
+    await callback.answer()
+    if callback.message:
+        await callback.message.answer(
+            "🗑 Введите числовой ID пользователя, которого нужно удалить. Чтобы отменить, напишите «Отмена»."
+        )
+
+
+@router.callback_query(F.data == "settings:exit")
+async def close_settings(callback: types.CallbackQuery) -> None:
+    user_id = callback.from_user.id
+    pending_password_change_users.discard(user_id)
+    pending_user_deletion.discard(user_id)
+    await callback.answer("Настройки закрыты.")
+    if callback.message:
+        try:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        except TelegramBadRequest:
+            pass
 
 
 @router.message(F.text == "Отправить ссылку")
