@@ -6,6 +6,7 @@ from aiogram.filters import Command
 from src.keyboards.utm_keyboards import (
     build_categories_keyboard,
     build_category_management_keyboard,
+    build_items_to_delete_keyboard
 )
 from src.services.utm_manager import utm_manager
 from src.state.user_state import utm_editing_data
@@ -56,7 +57,7 @@ async def start_utm_management(
     categories = utm_manager.get_all_categories()
     text = (
         "🛠 Панель управления UTM-метками\n\n"
-        "Выберите категорию для добавления новых меток.\n"
+        "Выберите категорию для редактирования.\n"
         "Чтобы выйти, отправьте /cancel, напишите «Отмена» или нажмите кнопку «❌ Выйти»."
     )
 
@@ -70,9 +71,8 @@ async def start_utm_management(
         await message.answer(text, reply_markup=build_categories_keyboard(categories))
 
 
-@router.message(Command("add"))
-@router.message(F.text == "Добавить UTM")
-async def cmd_add(message: types.Message) -> None:
+@router.message(Command("manage_utm"))
+async def cmd_manage_utm(message: types.Message) -> None:
     await start_utm_management(message.from_user.id, message=message)
 
 
@@ -86,34 +86,47 @@ async def cancel_add_text(message: types.Message) -> None:
     await _exit_add_mode(message.from_user.id, message=message)
 
 
-@router.callback_query(F.data.startswith("add_category:"))
-async def select_add_category(callback: types.CallbackQuery) -> None:
+@router.callback_query(F.data.startswith("manage_category:"))
+async def select_manage_category(callback: types.CallbackQuery) -> None:
     user_id = callback.from_user.id
     category_key = callback.data.split(":", 1)[1]
+
+    utm_editing_data.setdefault(user_id, {})
+    utm_editing_data[user_id].update({"category": category_key, "step": "choosing_action"})
 
     categories = utm_manager.get_all_categories()
     category_name = categories[category_key][0]
 
+    await callback.message.edit_text(
+        f"Выбрана категория: {category_name}\n\n"
+        "Выберите действие:",
+        reply_markup=build_category_management_keyboard(category_key),
+    )
+
+@router.callback_query(F.data.startswith("add_item_prompt:"))
+async def prompt_add_item(callback: types.CallbackQuery) -> None:
+    user_id = callback.from_user.id
+    category_key = callback.data.split(":", 1)[1]
+
     utm_editing_data.setdefault(user_id, {})
     utm_editing_data[user_id].update({"category": category_key, "step": "waiting_name"})
 
-    category_simple_key = category_key.split("_", 1)[1]
-    existing_items = utm_manager.get_category_data(category_simple_key)
-
-    if existing_items:
-        items_text = "\n\n📋 Существующие метки:\n" + "\n".join(
-            f"• {name} ({value})" for name, value in existing_items
-        )
-    else:
-        items_text = "\n\n📭 В этой категории пока нет меток"
-
     await callback.message.edit_text(
-        f"Выбрана категория: {category_name}\n"
-        f"Теперь введите название новой метки (например: 'Новый источник'){items_text}\n\n"
-        "Или нажмите кнопку ниже чтобы посмотреть все метки:",
-        reply_markup=build_category_management_keyboard(category_key, existing_items),
+        "Введите название новой метки (например: 'Новый источник'):"
     )
 
+@router.callback_query(F.data.startswith("delete_item_prompt:"))
+async def prompt_delete_item(callback: types.CallbackQuery) -> None:
+    category_key = callback.data.split(":", 1)[1]
+    items = utm_manager.get_category_data(category_key)
+    if not items:
+        await callback.answer("В этой категории нет меток для удаления.", show_alert=True)
+        return
+
+    await callback.message.edit_text(
+        "Выберите метку для удаления:",
+        reply_markup=build_items_to_delete_keyboard(category_key, items)
+    )
 
 @router.message(lambda msg: utm_editing_data.get(msg.from_user.id, {}).get("step") == "waiting_name")
 async def handle_utm_name(message: types.Message) -> None:
@@ -154,56 +167,22 @@ async def handle_utm_value(message: types.Message) -> None:
     category_key = user_state["category"]
     name = user_state["name"]
 
-    category_simple_key = category_key.split("_", 1)[1]
-    success = utm_manager.add_item(category_simple_key, name, value)
+    success = utm_manager.add_item(category_key, name, value)
 
     if success:
-        categories = utm_manager.get_all_categories()
-        category_name = categories[category_key][0]
-
         await message.answer(
             "✅ Успешно добавлено!\n"
-            f"Категория: {category_name}\n"
             f"Название: {name}\n"
-            f"Значение: {value}\n\n"
-            "Метка теперь доступна при создании ссылок!"
-        )
-
-        existing_items = utm_manager.get_category_data(category_simple_key)
-        items_text = "\n".join(f"• {item_name} ({item_value})" for item_name, item_value in existing_items)
-
-        await message.answer(
-            f"📋 Обновленный список меток в категории:\n{items_text}",
-            reply_markup=build_category_management_keyboard(category_key, existing_items),
+            f"Значение: {value}",
         )
     else:
         await message.answer(
-            "❌ Ошибка! Возможно, метка с таким значением уже существует.\n"
-            "Попробуйте другое значение."
+            "❌ Ошибка! Возможно, метка с таким значением уже существует."
         )
+    
+    _reset_add_state(user_id)
+    await start_utm_management(user_id, message=message)
 
-    utm_editing_data[user_id] = {"step": None, "category": None}
-
-
-@router.callback_query(F.data.startswith("view_category:"))
-async def view_category_items(callback: types.CallbackQuery) -> None:
-    category_key = callback.data.split(":", 1)[1]
-    category_simple_key = category_key.split("_", 1)[1]
-
-    categories = utm_manager.get_all_categories()
-    category_name = categories[category_key][0]
-    existing_items = utm_manager.get_category_data(category_simple_key)
-
-    if existing_items:
-        items_text = "\n".join(f"• {name} ({value})" for name, value in existing_items)
-        text = f"📋 Все метки в категории '{category_name}':\n\n{items_text}"
-    else:
-        text = f"📭 В категории '{category_name}' пока нет меток"
-
-    await callback.message.edit_text(
-        text,
-        reply_markup=build_category_management_keyboard(category_key, existing_items),
-    )
 
 
 @router.callback_query(F.data.startswith("delete_item:"))
@@ -214,42 +193,42 @@ async def delete_utm_item(callback: types.CallbackQuery) -> None:
         return
 
     _, category_key, value = parts
-    category_simple_key = category_key.split("_", 1)[1]
 
-    success = utm_manager.delete_item(category_simple_key, value)
+    success = utm_manager.delete_item(category_key, value)
     if not success:
         await callback.answer("❌ Ошибка при удалении!")
         return
 
     await callback.answer("✅ Метка удалена!")
 
-    categories = utm_manager.get_all_categories()
-    category_name = categories[category_key][0]
-    existing_items = utm_manager.get_category_data(category_simple_key)
-
-    if existing_items:
-        items_text = "\n".join(f"• {name} ({value})" for name, value in existing_items)
-        text = f"📋 Все метки в категории '{category_name}':\n\n{items_text}"
-    else:
-        text = f"📭 В категории '{category_name}' пока нет меток"
+    items = utm_manager.get_category_data(category_key)
+    if not items:
+        await callback.message.edit_text("Все метки в этой категории были удалены.")
+        await start_utm_management(callback.from_user.id, callback=callback)
+        return
 
     await callback.message.edit_text(
-        text,
-        reply_markup=build_category_management_keyboard(category_key, existing_items),
+        "Выберите метку для удаления:",
+        reply_markup=build_items_to_delete_keyboard(category_key, items),
     )
 
 
 @router.callback_query(F.data == "back_to_categories")
 async def back_to_categories(callback: types.CallbackQuery) -> None:
+    await start_utm_management(callback.from_user.id, callback=callback)
+
+
+@router.callback_query(F.data.startswith("back_to_manage:"))
+async def back_to_manage_category(callback: types.CallbackQuery) -> None:
+    category_key = callback.data.split(":", 1)[1]
     categories = utm_manager.get_all_categories()
+    category_name = categories[category_key][0]
     await callback.message.edit_text(
-        "🛠 Панель управления UTM-метками\n\n"
-        "Выберите категорию для добавления новых меток:",
-        reply_markup=build_categories_keyboard(categories),
+        f"Выбрана категория: {category_name}\n\nВыберите действие:",
+        reply_markup=build_category_management_keyboard(category_key),
     )
 
-
-@router.callback_query(F.data == "exit_add")
+@router.callback_query(F.data == "exit_manage")
 async def exit_add_callback(callback: types.CallbackQuery) -> None:
     await _exit_add_mode(callback.from_user.id, callback=callback)
     try:

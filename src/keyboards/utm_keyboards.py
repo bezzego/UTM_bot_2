@@ -7,41 +7,45 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 def build_categories_keyboard(categories: dict) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for key, (name, _) in categories.items():
-        builder.add(InlineKeyboardButton(text=name, callback_data=f"add_category:{key}"))
-    builder.add(InlineKeyboardButton(text="❌ Выйти", callback_data="exit_add"))
+        builder.add(InlineKeyboardButton(text=name, callback_data=f"manage_category:{key}"))
+    builder.add(InlineKeyboardButton(text="❌ Выйти", callback_data="exit_manage"))
     builder.adjust(1)
     return builder.as_markup()
 
 
-def build_category_management_keyboard(category_key: str, items: Sequence[Tuple[str, str]]) -> InlineKeyboardMarkup:
+def build_category_management_keyboard(category_key: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.add(
         InlineKeyboardButton(
-            text="👁️ Посмотреть все метки",
-            callback_data=f"view_category:{category_key}",
+            text="➕ Добавить метку",
+            callback_data=f"add_item_prompt:{category_key}"
         )
     )
+    builder.add(
+        InlineKeyboardButton(
+            text="❌ Удалить метку",
+            callback_data=f"delete_item_prompt:{category_key}"
+        )
+    )
+    builder.add(
+        InlineKeyboardButton(
+            text="⬅️ Назад к категориям",
+            callback_data="back_to_categories"
+        )
+    )
+    builder.adjust(1)
+    return builder.as_markup()
 
+def build_items_to_delete_keyboard(category_key: str, items: Sequence[Tuple[str, str]]) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
     for name, value in items:
         builder.add(
             InlineKeyboardButton(
-                text=f"❌ Удалить {name}",
-                callback_data=f"delete_item:{category_key}:{value}",
+                text=f"❌ {name}",
+                callback_data=f"delete_item:{category_key}:{value}"
             )
         )
-
-    builder.add(
-        InlineKeyboardButton(
-            text="⬅️ Назад к категориям",
-            callback_data="back_to_categories",
-        )
-    )
-    builder.add(
-        InlineKeyboardButton(
-            text="❌ Выйти",
-            callback_data="exit_add",
-        )
-    )
+    builder.add(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"back_to_manage:{category_key}"))
     builder.adjust(1)
     return builder.as_markup()
 

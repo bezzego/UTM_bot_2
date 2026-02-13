@@ -209,12 +209,10 @@ async def add_date_choice(callback: types.CallbackQuery) -> None:
     if choice == "manual_content":
         user_data[user_id].pop("date_for_utm", None)
         user_data[user_id].pop("awaiting_date", None)
-        user_data[user_id].pop("manual_utm_content", None)
         user_data[user_id]["awaiting_content"] = True
         await callback.answer()
         await callback.message.answer(
-            "Введите utm_content вручную. После ввода нажмите «Подтвердить».",
-            reply_markup=build_manual_content_confirm_keyboard(),
+            "Введите utm_content вручную:",
         )
         return
 
@@ -257,22 +255,7 @@ async def handle_manual_content(message: types.Message) -> None:
     user_data[user_id]["manual_utm_content"] = content_text
     user_data[user_id]["awaiting_content"] = False
 
-    await message.answer(
-        f"Сохранено utm_content: {content_text}\nНажмите «Подтвердить», чтобы сформировать ссылку.",
-        reply_markup=build_manual_content_confirm_keyboard(),
-    )
-
-
-@router.callback_query(F.data == "content:confirm")
-async def confirm_manual_content(callback: types.CallbackQuery) -> None:
-    user_id = callback.from_user.id
-    manual_content = user_data.get(user_id, {}).get("manual_utm_content")
-    if not manual_content:
-        await callback.answer("Сначала введите utm_content.", show_alert=True)
-        return
-
-    await callback.answer()
-    await generate_short_link(user_id, callback=callback)
+    await generate_short_link(user_id, message=message)
 
 
 @router.callback_query(F.data == "content:back")
@@ -338,8 +321,8 @@ async def generate_short_link(
     result_text = "\n\n".join(lines)
 
     webapp_button = InlineKeyboardButton(
-        text="Открыть API GorBilet",
-        web_app=types.WebAppInfo(url="https://api.gorbilet.com/v2/admin/"),
+        text="Открыть API Gorbilet",
+        web_app=types.WebAppInfo(url="https://gorbilet.com/api"),
     )
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=[[webapp_button]])
 
