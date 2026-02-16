@@ -1,19 +1,19 @@
 import datetime
 import logging
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple, Dict
 
 from aiogram import F, Router, types
 from aiogram.types import InlineKeyboardButton
 
 from src.config import settings
 from src.keyboards.utm_keyboards import (
-    build_campaign_groups_keyboard,
+    build_campaign_category_keyboard, # ИСПРАВЛЕНО
     build_campaign_keyboard,
-    build_date_choice_keyboard,
     build_medium_keyboard,
-    build_manual_content_confirm_keyboard,
     build_other_sources_keyboard,
     build_sources_keyboard,
+    build_date_choice_keyboard,
+    build_manual_content_confirm_keyboard
 )
 from src.services.clc_shortener import shorten_url
 from src.services.utm_builder import build_utm_url
@@ -30,6 +30,12 @@ router = Router()
 def get_utm_sources() -> Sequence[Tuple[str, str]]:
     return utm_manager.get_category_data("source")
 
+CAMPAIGN_CATEGORIES: Dict[str, str] = {
+    "📍 СПБ кампании": "spb",
+    "🏙 МСК кампании": "msk",
+    "🌍 Регионы кампании": "regions",
+    "🌐 Зарубежье кампании": "foreign",
+}
 
 CAMPAIGN_GROUPS_MAP = {
     "spb": "campaign_spb",
@@ -125,13 +131,12 @@ async def select_medium(callback: types.CallbackQuery) -> None:
     await callback.message.edit_text(f"Тип трафика (utm_medium) выбран: {medium_val}")
     await callback.message.answer(
         "Выберите группу utm_campaign:",
-        reply_markup=build_campaign_groups_keyboard(),
+        reply_markup=build_campaign_category_keyboard(CAMPAIGN_CATEGORIES), # ИСПРАВЛЕНО
     )
 
 
-@router.callback_query(F.data.startswith("campgrp:"))
+@router.callback_query(F.data.startswith("select_campaign_category:")) # ИСПРАВЛЕНО
 async def select_campaign_group(callback: types.CallbackQuery) -> None:
-    user_id = callback.from_user.id
     group_val = callback.data.split(":", 1)[1]
 
     campaigns = get_utm_campaigns(group_val)
@@ -139,17 +144,33 @@ async def select_campaign_group(callback: types.CallbackQuery) -> None:
         await callback.answer("В этой группе пока нет меток.", show_alert=True)
         return
 
-    await callback.message.edit_text(f"Вы выбрали группу кампаний: {group_val}")
-    await callback.message.answer(
+    await callback.answer()
+    await callback.message.edit_text(
+        f"Вы выбрали группу кампаний: {group_val}. Теперь выберите конкретную кампанию (utm_campaign):",
+        reply_markup=build_campaign_keyboard(campaigns, group_val, page=1), # ИСПРАВЛЕНО
+    )
+
+@router.callback_query(F.data.startswith("select_campaign_page:")) # НОВЫЙ ОБРАБОТЧИК
+async def select_campaign_page(callback: types.CallbackQuery):
+    _, category_key, page_str = callback.data.split(":", 2)
+    page = int(page_str)
+
+    campaigns = get_utm_campaigns(category_key)
+    if not campaigns:
+        await callback.answer("В этой группе пока нет меток.", show_alert=True)
+        return
+
+    await callback.answer()
+    await callback.message.edit_text(
         "Теперь выберите конкретную кампанию (utm_campaign):",
-        reply_markup=build_campaign_keyboard(campaigns),
+        reply_markup=build_campaign_keyboard(campaigns, category_key, page=page),
     )
 
 
-@router.callback_query(F.data.startswith("camp:"))
+@router.callback_query(F.data.startswith("select_item:campaign:")) # ИСПРАВЛЕНО
 async def select_campaign(callback: types.CallbackQuery) -> None:
     user_id = callback.from_user.id
-    campaign_val = callback.data.split(":", 1)[1]
+    _, _, campaign_val = callback.data.split(":", 2) # ИСПРАВЛЕНО
 
     user_data.setdefault(user_id, {})
     user_data[user_id]["utm_campaign"] = campaign_val
@@ -375,5 +396,5 @@ async def go_back(callback: types.CallbackQuery) -> None:
     if target == "campaign":
         await callback.message.edit_text(
             "Выберите группу utm_campaign:",
-            reply_markup=build_campaign_groups_keyboard(),
+            reply_markup=build_campaign_category_keyboard(CAMPAIGN_CATEGORIES), # ИСПРАВЛЕНО
         )
