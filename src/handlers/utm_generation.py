@@ -310,7 +310,7 @@ async def generate_short_link(
         f"🧩 С UTM:\n{full_url}"
     )
     admin_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Открыть API Гориболета", web_app=WebAppInfo(url="https://api.gorbilet.com/v2/admin/"))]
+        [InlineKeyboardButton(text="Открыть API Горбилета", web_app=WebAppInfo(url="https://api.gorbilet.com/v2/admin/"))]
     ])
 
     await _reply(message, callback, result_text, reply_markup=admin_keyboard)
