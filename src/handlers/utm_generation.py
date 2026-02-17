@@ -5,9 +5,8 @@ from typing import Optional, Sequence, Tuple, Dict
 from aiogram import F, Router, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
-from src.config import settings
 from src.keyboards.utm_keyboards import (
     build_campaign_category_keyboard,
     build_campaign_keyboard,
@@ -17,7 +16,6 @@ from src.keyboards.utm_keyboards import (
     build_other_sources_keyboard,
     build_sources_keyboard,
 )
-from src.services.clc_shortener import shorten_url
 from src.services.utm_builder import build_utm_url
 from src.services.utm_manager import utm_manager
 from src.services.database import database
@@ -215,12 +213,14 @@ async def add_date_choice(callback: types.CallbackQuery, state: FSMContext) -> N
         await generate_short_link(state, callback=callback)
 
     elif choice == "manual_content":
+        await state.set_state(UTMGenerationStates.awaiting_content)
         await state.update_data(awaiting_content=True)
         await callback.message.answer(
             "Введите utm_content вручную. После ввода нажмите «Подтвердить».",
             reply_markup=build_manual_content_confirm_keyboard(),
         )
     elif choice == "manual":
+        await state.set_state(UTMGenerationStates.awaiting_date)
         await state.update_data(awaiting_date=True)
         await callback.message.answer("Введите дату в формате YYYY-MM-DD (например: 2025-10-10)")
     
@@ -267,6 +267,7 @@ async def confirm_manual_content(callback: types.CallbackQuery, state: FSMContex
 
 @router.callback_query(F.data == "content:back")
 async def back_from_manual_content(callback: types.CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(None)
     await state.update_data(awaiting_content=False, utm_content=None)
     data = await state.get_data()
     await callback.answer()
@@ -301,26 +302,18 @@ async def generate_short_link(
     full_url = build_utm_url(base_url, utm_source, utm_medium, utm_campaign, utm_content)
     logger.info("Full UTM URL for user %s: %s", user_id, full_url)
 
-    try:
-        short_url = await shorten_url(full_url, settings.clc_api_key)
-        if short_url is None:
-            raise ValueError("Shortener returned None")
-    except Exception as e:
-        logger.exception("URL shortening failed: %s", e)
-        error_text = f"❌ Ошибка при сокращении ссылки.\n\nПолная ссылка:\n{full_url}"
-        await _reply(message, callback, error_text)
-        return
-
-    database.add_history(user_id, base_url, full_url, short_url)
+    database.add_history(user_id, base_url, full_url, full_url)
 
     result_text = (
         f"✅ Результаты генерации ссылок:\n\n"
         f"🔗 Исходная:\n{base_url}\n\n"
-        f"🧩 С UTM:\n{full_url}\n\n"
-        f"✂️ Сокращённая:\n{short_url}"
+        f"🧩 С UTM:\n{full_url}"
     )
+    admin_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Открыть API Гориболета", web_app=WebAppInfo(url="https://api.gorbilet.com/v2/admin/"))]
+    ])
 
-    await _reply(message, callback, result_text)
+    await _reply(message, callback, result_text, reply_markup=admin_keyboard)
     await state.clear()
 
 
@@ -328,11 +321,15 @@ async def _reply(
     message: Optional[types.Message],
     callback: Optional[types.CallbackQuery],
     text: str,
+    reply_markup: Optional[types.InlineKeyboardMarkup] = None,
 ) -> None:
+    kwargs = {"disable_web_page_preview": True}
+    if reply_markup:
+        kwargs["reply_markup"] = reply_markup
     if callback:
-        await callback.message.answer(text, disable_web_page_preview=True)
+        await callback.message.answer(text, **kwargs)
     elif message:
-        await message.answer(text, disable_web_page_preview=True)
+        await message.answer(text, **kwargs)
 
 
 @router.callback_query(F.data.startswith("back:"))
